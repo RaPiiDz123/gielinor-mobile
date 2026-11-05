@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#171b16">
+<title>Gielinor – Mobile Prototype</title>
+<style>
+:root{--gold:#d6b66a;--panel:rgba(23,25,21,.94);--line:#786744;--cream:#e8dfc6}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101710;color:var(--cream);font-family:Georgia,serif;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#top{position:absolute;top:env(safe-area-inset-top,8px);left:8px;right:8px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.panel{background:var(--panel);border:2px solid var(--line);box-shadow:0 2px 8px #0009;border-radius:5px;padding:7px 10px;text-shadow:1px 1px #000}
+#stats{font-size:12px;line-height:1.5;min-width:118px}#stats b{color:var(--gold)}
+#title{font-size:14px;text-align:center;color:var(--gold);letter-spacing:1px}
+#minimap{width:88px;height:88px;border-radius:50%;border:3px solid #a38a55;background:radial-gradient(circle,#527449 0 35%,#74633b 36% 55%,#3b593b 56%);position:relative;overflow:hidden}
+#minimap:before{content:"";position:absolute;left:43px;top:10px;width:2px;height:65px;background:#c9b67d;transform:rotate(38deg)}
+#minimap:after{content:"";position:absolute;left:41px;top:40px;width:7px;height:7px;background:#e9d36e;border-radius:50%;box-shadow:0 0 5px #fff}
+#bottom{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;align-items:end;justify-content:space-between;gap:8px;pointer-events:none}
+#chat{width:min(55%,330px);height:112px;font:12px/1.35 Georgia,serif;overflow:hidden;color:#ddd;background:rgba(12,14,12,.82)}
+#chat .gold{color:#e5c66d}#chat .green{color:#9acb79}
+#actions{display:flex;flex-direction:column;gap:7px;pointer-events:auto}
+button{font-family:Georgia,serif;color:#f2e8ca;background:linear-gradient(#5d5035,#302b20);border:2px solid #9d8755;border-radius:5px;padding:9px 12px;font-size:13px;text-shadow:1px 1px #000;box-shadow:0 2px 4px #0009}
+button:active{filter:brightness(1.35);transform:translateY(1px)}
+#joystick{position:absolute;left:20px;bottom:145px;width:116px;height:116px;border-radius:50%;background:#161a16a8;border:2px solid #c2aa6b77;pointer-events:auto;touch-action:none}
+#stick{position:absolute;width:48px;height:48px;left:32px;top:32px;border-radius:50%;background:#bda36b99;border:2px solid #e4d09a}
+#hint{position:absolute;top:104px;left:50%;transform:translateX(-50%);font-size:12px;white-space:nowrap;background:#111c;padding:5px 9px;border-radius:4px}
+#modal{display:none;position:absolute;inset:0;background:#0009;align-items:center;justify-content:center;padding:22px}
+#modal .box{width:min(360px,100%);background:var(--panel);border:3px solid var(--line);padding:16px;border-radius:6px}
+#modal h2{color:var(--gold);font-size:19px;margin:0 0 10px}#modal p{font-size:14px;line-height:1.5}
+#modal .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#modal button{flex:1}
+@media(min-width:700px){#joystick{bottom:28px;left:28px}#chat{height:130px}#bottom{max-width:900px;margin:auto}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="top">
+  <div id="stats" class="panel"><b>Abenteuer</b><br>LP: <span id="hp">10</span>/10<br>Gold: <span id="gold">25</span><br>Kampfstufe: 3</div>
+  <div id="title" class="panel">GIELINOR<br><small style="font-size:10px;color:#c9bd9c">MOBILE PROTOTYPE</small></div>
+  <div id="minimap"></div>
+</div>
+<div id="hint">Tippe auf den Boden, um zu laufen</div>
+<div id="joystick"><div id="stick"></div></div>
+<div id="bottom">
+  <div id="chat" class="panel"><span class="gold">Willkommen in Lumbridge!</span><br>Dies ist ein früher 3D-Prototyp.<br><span class="green">Tipp:</span> Sprich mit dem Ratgeber oder sammle Holz.</div>
+  <div id="actions"><button id="inventory">🎒 Inventar</button><button id="skills">⚒ Fertigkeiten</button><button id="help">☰ Menü</button></div>
+</div>
+<div id="modal"><div class="box"><h2 id="mtitle">Inventar</h2><div id="mbody"></div><div class="row"><button id="close">Schließen</button></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=>{
+const root=document.getElementById('game'), chat=document.getElementById('chat');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x91b8c2);scene.fog=new THREE.Fog(0x91b8c2,35,95);
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,180);
+camera.position.set(0,12,17);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xddeeff,0x65704b,2.0));
+const sun=new THREE.DirectionalLight(0xffe2ad,2.2);sun.position.set(-12,24,10);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const mat=(c,r=.9)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const grass=mat(0x557b43), pathmat=mat(0x9b855c), stone=mat(0x77766b), wood=mat(0x68452b), leaf=mat(0x315b35), roof=mat(0x66504a), water=mat(0x477f91,.35);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),grass);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+function box(x,y,z,sx,sy,sz,m){let o=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o}
+function tree(x,z){let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.32,2,7),wood);trunk.position.set(x,1,z);trunk.castShadow=true;scene.add(trunk);for(let i=0;i<3;i++){let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05-i*.12,1),leaf);crown.position.set(x+(i-1)*.3,2.35+i*.25,z);crown.castShadow=true;scene.add(crown)}}
+function house(x,z,s=1){box(x,1.2,z,5*s,2.4*s,4*s,mat(0xb9a47b));let r=new THREE.Mesh(new THREE.ConeGeometry(3.8*s,2*s,4),roof);r.position.set(x,3.25*s,z);r.rotation.y=Math.PI/4;r.castShadow=true;scene.add(r);box(x,0.8,z+2.02*s,.9*s,1.6*s,.08,wood)}
+// village path, river and bridge
+let path=new THREE.Mesh(new THREE.PlaneGeometry(8,65),pathmat);path.rotation.x=-Math.PI/2;path.position.set(0,.015,-8);scene.add(path);
+let river=new THREE.Mesh(new THREE.PlaneGeometry(120,9),water);river.rotation.x=-Math.PI/2;river.position.set(0,.025,-23);scene.add(river);
+for(let x=-4;x<=4;x+=1.4)box(x,.35,-23,.9,.7,10,wood);
+house(-9,-3,1);house(9,-7,.9);house(-10,9,.8);house(10,10,.8);
+for(let i=0;i<34;i++){let x=(Math.random()-.5)*48,z=(Math.random()-.5)*48;if(Math.abs(x)>14||Math.abs(z)>17)tree(x,z)}
+// stones and path edging
+for(let i=0;i<22;i++){let z=-30+i*2.7;box(-4.5,.12,z,.35,.25,.45,stone);box(4.5,.12,z,.35,.25,.45,stone)}
+// player: simple old-school adventurer silhouette
+const player=new THREE.Group();scene.add(player);
+let body=new THREE.Mesh(new THREE.CylinderGeometry(.34,.42,.95,7),mat(0x426a91));body.position.y=1.05;body.castShadow=true;player.add(body);
+let head=new THREE.Mesh(new THREE.SphereGeometry(.29,8,7),mat(0xd0a47c));head.position.y=1.75;head.castShadow=true;player.add(head);
+let legs=new THREE.Mesh(new THREE.BoxGeometry(.55,.55,.35),mat(0x4b4438));legs.position.y=.35;player.add(legs);
+let cape=new THREE.Mesh(new THREE.ConeGeometry(.42,.9,4),mat(0x762e27));cape.position.set(0,1.05,.38);cape.rotation.x=.15;player.add(cape);
+player.position.set(0,0,5);
+function npc(x,z,color=0x8a6b42){let g=new THREE.Group();let b=new THREE.Mesh(new THREE.CylinderGeometry(.35,.42,1,7),mat(color));b.position.y=1;g.add(b);let h=new THREE.Mesh(new THREE.SphereGeometry(.28,8,7),mat(0xc99b70));h.position.y=1.7;g.add(h);g.position.set(x,0,z);g.userData.kind='npc';scene.add(g);return g}
+const guide=npc(-3,0,0x776044);guide.userData.name='Lumbridge-Ratgeber';
+const chicken=npc(4,4,0xd8d1bd);chicken.userData.name='Huhn';chicken.userData.kind='chicken';
+const oak=box(6,1.4,-4,1.1,2.8,1.1,wood);oak.userData.kind='tree';oak.userData.name='Eiche';
+const canopy=new THREE.Mesh(new THREE.IcosahedronGeometry(1.8,1),leaf);canopy.position.set(6,3.2,-4);scene.add(canopy);
+let target=null,keys={},inv=['Bronzeschwert','Holz-Schild','Brot'],gold=25,hp=10,angle=0;
+const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
+function say(t){chat.innerHTML=t+'<br>'+chat.innerHTML;chat.innerHTML=chat.innerHTML.split('<br>').slice(0,6).join('<br>')}
+function show(title,body){document.getElementById('mtitle').textContent=title;document.getElementById('mbody').innerHTML=body;document.getElementById('modal').style.display='flex'}
+document.getElementById('close').onclick=()=>document.getElementById('modal').style.display='none';
+document.getElementById('inventory').onclick=()=>show('Inventar','<p>'+inv.map(x=>'▣ '+x).join('<br>')+'</p><p>Goldmünzen: '+gold+'</p>');
+document.getElementById('skills').onclick=()=>show('Fertigkeiten','<p>⚔ Angriff: 1<br>🛡 Verteidigung: 1<br>💪 Stärke: 1<br>🪓 Holzfällerei: 1<br>⛏ Bergbau: 1<br>🎣 Angeln: 1</p>');
+document.getElementById('help').onclick=()=>show('Menü','<p>Einzelspieler-Prototyp – Lumbridge-Gebiet.<br>Tippe auf den Boden, um dich zu bewegen. Tippe NPCs oder Bäume an, um mit ihnen zu interagieren.</p>');
+function interact(obj){if(!obj)return;if(obj.userData.kind==='npc'&&obj.userData.name==='Lumbridge-Ratgeber')say('<span class="gold">Ratgeber:</span> Willkommen, Abenteurer! Erkunde Lumbridge und lerne die Grundlagen.');else if(obj.userData.kind==='chicken'){say('Du verscheuchst das Huhn. Es gackert empört.');}else if(obj.userData.kind==='tree'){if(!inv.includes('Eichen-Scheit'))inv.push('Eichen-Scheit');say('<span class="green">Du fällst einen Eichen-Scheit.</span>');}else say('Nichts Interessantes passiert.')}
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.target.closest&&e.target.closest('button'))return;pointer.x=e.clientX/innerWidth*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;ray.setFromCamera(pointer,camera);let hits=ray.intersectObjects(scene.children,true);let found=hits.find(h=>h.object!==ground&&h.object!==path&&h.object!==river);if(found){let o=found.object;while(o.parent&&o!==scene&&!o.userData.kind)o=o.parent;if(o.userData.kind){target=o.position.clone();target.y=0;interact(o);return}}let floor=ray.intersectObject(ground);if(floor.length){target=floor[0].point.clone();target.y=0}});
+const joy=document.getElementById('joystick'),stick=document.getElementById('stick');let joyOn=false,jx=0,jz=0;
+joy.addEventListener('pointerdown',e=>{joyOn=true;joy.setPointerCapture(e.pointerId);moveJoy(e)});
+joy.addEventListener('pointermove',e=>{if(joyOn)moveJoy(e)});
+function moveJoy(e){let r=joy.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),d=Math.min(38,Math.hypot(dx,dy)),a=Math.atan2(dy,dx);jx=Math.cos(a)*d/38;jz=Math.sin(a)*d/38;stick.style.transform=`translate(${jx*34}px,${jz*34}px)`}
+function endJoy(){joyOn=false;jx=jz=0;stick.style.transform=''}
+joy.addEventListener('pointerup',endJoy);joy.addEventListener('pointercancel',endJoy);
+function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}addEventListener('resize',resize);
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);let dt=Math.min(clock.getDelta(),.04);let move=new THREE.Vector3(jx,0,jz);if(target){let d=target.clone().sub(player.position);d.y=0;if(d.length()>.25)move.add(d.normalize());else target=null}if(move.lengthSq()>0){move.normalize();player.position.addScaledVector(move,dt*4.2);player.rotation.y=Math.atan2(move.x,move.z)}let desired=new THREE.Vector3(player.position.x,player.position.y+11,player.position.z+15);camera.position.lerp(desired,.07);camera.lookAt(player.position.x,0,player.position.z-1);renderer.render(scene,camera)}
+animate();
+})();
+</script>
+</body>
+</html>
